@@ -7,7 +7,7 @@ from datetime import date, timedelta
 # Page Config
 st.set_page_config(page_title="NBA Streamer's Edge", layout="centered")
 
-# --- 1. CSS FOR READABILITY ---
+# --- 1. CSS FOR THE CENTRAL GLASS PANE ---
 def get_base64(bin_file):
     with open(bin_file, 'rb') as f:
         data = f.read()
@@ -17,30 +17,44 @@ try:
     bin_str = get_base64('background_image.png')
     st.markdown(f"""
         <style>
+        /* 1. The main site background */
         [data-testid="stAppViewContainer"] {{
             background-image: url("data:image/png;base64,{bin_str}");
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
         }}
-        /* This tints the whole background white so text is easy to read */
-        [data-testid="stAppViewContainer"]::before {{
-            content: "";
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background-color: rgba(255, 255, 255, 0.85);
-            z-index: -1;
+        
+        /* 2. The Transparent White Bubble (Central Pane) */
+        /* This targets the main content area */
+        [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"] {{
+            background-color: transparent;
         }}
-        /* Header and Text Colors */
-        h1, h2, h3, p, span {{
+        
+        /* This targets the vertical block that holds all your main content */
+        [data-testid="stMainViewContainer"] [data-testid="stVerticalBlock"] > div {{
+            background-color: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+        }}
+        
+        /* 3. Ensure sidebar stays clean */
+        [data-testid="stSidebar"] {{
+            background-color: rgba(255, 255, 255, 0.95);
+        }}
+
+        /* 4. Text Contrast */
+        h1, h2, h3, p, span, label {{
             color: #1E1E1E !important;
         }}
-        /* Card-style expanders */
+
+        /* 5. Team Card Styling */
         .streamlit-expanderHeader {{
             background-color: white !important;
-            border: 1px solid #ddd !important;
+            border: 1px solid #E0E0E0 !important;
             border-radius: 10px !important;
-            box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
         }}
         </style>
         """, unsafe_allow_html=True)
@@ -60,10 +74,8 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 def load_data():
     schedule_url = "https://docs.google.com/spreadsheets/d/19WTtvYIW132Tzv94ktKNrkug_z975AfiLrbUcJq04uQ/edit?gid=1678584316#gid=1678584316"
     ratings_url = "https://docs.google.com/spreadsheets/d/19WTtvYIW132Tzv94ktKNrkug_z975AfiLrbUcJq04uQ/edit?gid=1403257463#gid=1403257463"
-    
     schedule = conn.read(spreadsheet=schedule_url)
     ratings = conn.read(spreadsheet=ratings_url)
-    
     schedule.columns = schedule.columns.str.strip().str.title()
     ratings.columns = ratings.columns.str.strip().str.title()
     schedule['Date'] = pd.to_datetime(schedule['Date'], dayfirst=True)
@@ -81,8 +93,7 @@ try:
     max_sched_date = df_schedule['Date'].max().date()
     
     if b2b_toggle:
-        start_date = today_val
-        end_date = today_val + timedelta(days=1)
+        start_date, end_date = today_val, today_val + timedelta(days=1)
         st.sidebar.info(f"📅 Showing back-to-back games for: {start_date} to {end_date}")
     else:
         start_date = st.sidebar.date_input("Start Date", today_val, min_value=yesterday, max_value=max_sched_date)
@@ -116,24 +127,18 @@ try:
                 if info['Tier'] == 'Pushover': score += 1
                 elif info['Tier'] == 'Lockdown': score -= 1
                 matchups.append(f"{info['Emoji']} vs {opp}")
-            team_stats.append({"Team": team, "Games": len(games), "Quality Score": score, "Matchups": " | ".join(matchups)})
+            team_stats.append({"Team": team, "Games": len(games), "Score": score, "Matchups": " | ".join(matchups)})
 
     # --- 6. DISPLAY ---
     if team_stats:
         df_res = pd.DataFrame(team_stats)
-        game_counts = sorted(df_res['Games'].unique(), reverse=True)
-        
-        for count in game_counts:
+        for count in sorted(df_res['Games'].unique(), reverse=True):
             st.header(f"📅 Teams playing {count} games")
-            st.divider()
-            
-            subset = df_res[df_res['Games'] == count].sort_values("Quality Score", ascending=False)
+            subset = df_res[df_res['Games'] == count].sort_values("Score", ascending=False)
             for _, row in subset.iterrows():
-                vibe = "🔥" if row['Quality Score'] > 0 else "❄️" if row['Quality Score'] < 0 else "⚪"
-                label = f"{vibe} {row['Team']} (Quality Score: {row['Quality Score']})"
-                with st.expander(label):
+                vibe = "🔥" if row['Score'] > 0 else "❄️" if row['Score'] < 0 else "⚪"
+                with st.expander(f"{vibe} {row['Team']} (Quality Score: {row['Score']})"):
                     st.write(f"**Matchups:** {row['Matchups']}")
-            st.markdown("<br>", unsafe_allow_html=True) # Spacer
     else:
         st.warning("No teams found for this selection.")
 
