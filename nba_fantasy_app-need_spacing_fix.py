@@ -1,5 +1,5 @@
 import streamlit as st
-import pandas as pd
+import pd
 import base64
 from streamlit_gsheets import GSheetsConnection
 from datetime import date, timedelta
@@ -7,7 +7,7 @@ from datetime import date, timedelta
 # Page Config
 st.set_page_config(page_title="NBA Streamer's Edge", layout="centered")
 
-# --- 1. CSS STYLING (The "Glass Card" Fix) ---
+# --- 1. CSS FOR READABILITY ---
 def get_base64(bin_file):
     with open(bin_file, 'rb') as f:
         data = f.read()
@@ -17,40 +17,31 @@ try:
     bin_str = get_base64('background_image.png')
     st.markdown(f"""
         <style>
-        /* 1. Set the background image */
         [data-testid="stAppViewContainer"] {{
             background-image: url("data:image/png;base64,{bin_str}");
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
         }}
-        
-        /* 2. Style the Container to be the "Bubble" */
-        /* This targets the border=True container specifically */
-        [data-testid="stElementContainer"] div[data-testid="stVerticalBlockBorderWrapper"] {{
-            background-color: rgba(255, 255, 255, 0.85) !important;
-            backdrop-filter: blur(12px) !important;
-            padding: 20px !important;
-            border-radius: 25px !important;
-            border: 1px solid rgba(255, 255, 255, 0.4) !important;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1) !important;
-            margin-bottom: 2rem !important;
+        /* Instead of bubbles, we frost the WHOLE background slightly for readability */
+        [data-testid="stAppViewContainer"]::before {{
+            content: "";
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            z-index: -1;
         }}
-
-        /* 3. Global Text for Dark Contrast inside Bubble */
-        h2, h3, p, span, label, .stMarkdown {{
-            color: #1E1E1E !important;
-        }}
-
-        /* 4. Style Expanders (Team Rows) to be solid white */
+        h1, h2, h3 {{ color: #1E1E1E !important; }}
+        /* Make Expanders stand out like cards */
         .streamlit-expanderHeader {{
             background-color: white !important;
-            border-radius: 12px !important;
-            border: 1px solid #E0E0E0 !important;
+            border: 1px solid #ddd !important;
+            border-radius: 8px !important;
+            margin-bottom: 5px;
         }}
         </style>
         """, unsafe_allow_html=True)
-except Exception as e:
+except:
     st.sidebar.warning("Background image not found.")
 
 # --- 2. LOGO ---
@@ -78,15 +69,14 @@ try:
     
     # --- 4. SIDEBAR ---
     st.sidebar.header("Filter Settings")
-    b2b_shortcut = st.sidebar.toggle("Show Today & Tomorrow (back-to-back)", value=False)
+    b2b_toggle = st.sidebar.toggle("Show Today & Tomorrow (back-to-back)", value=False)
     
     today_val = date.today()
     yesterday = today_val - timedelta(days=1)
     max_sched_date = df_schedule['Date'].max().date()
     
-    if b2b_shortcut:
-        start_date = today_val
-        end_date = today_val + timedelta(days=1)
+    if b2b_toggle:
+        start_date, end_date = today_val, today_val + timedelta(days=1)
         st.sidebar.info(f"📅 Showing back-to-back games for: {start_date} to {end_date}")
     else:
         start_date = st.sidebar.date_input("Start Date", today_val, min_value=yesterday, max_value=max_sched_date)
@@ -94,55 +84,45 @@ try:
 
     st.sidebar.markdown("---")
     with st.sidebar.expander("ℹ️ How Quality Scores work"):
-        st.write("""
-            **Based on Last 15 Games:**
-            * 🔥 **Pushover (+1):** Bottom 5 Defense.
-            * ⚪ **Neutral (0):** League Average.
-            * ❄️ **Lockdown (-1):** Top 5 Defense.
-            
-            **Quality Score** is the sum of these values.
-        """)
+        st.write("Score is based on opponent defensive ratings from the last 15 games.")
 
     # --- 5. PROCESSING ---
     mask = (df_schedule['Date'].dt.date >= start_date) & (df_schedule['Date'].dt.date <= end_date)
-    filtered_sched = df_schedule[mask]
+    filtered = df_schedule[mask]
     rating_map = df_ratings.set_index('Team')[['Tier', 'Emoji']].to_dict('index')
     all_teams = sorted(pd.concat([df_schedule['Home Team'], df_schedule['Away Team']]).unique())
+    
     team_stats = []
-
     for team in all_teams:
-        games = filtered_sched[(filtered_sched['Home Team'] == team) | (filtered_sched['Away Team'] == team)].sort_values('Date')
-        if b2b_shortcut and len(games) < 2: continue
-        num_games = len(games)
-        if num_games > 0:
-            quality_score = 0
-            matchup_list = []
+        games = filtered[(filtered['Home Team'] == team) | (filtered['Away Team'] == team)].sort_values('Date')
+        if b2b_toggle and len(games) < 2: continue
+        if not games.empty:
+            score = 0
+            matchups = []
             for _, row in games.iterrows():
-                opponent = row['Away Team'] if row['Home Team'] == team else row['Home Team']
-                opp_info = rating_map.get(opponent, {'Tier': 'Neutral', 'Emoji': '⚪'})
-                if opp_info['Tier'] == 'Pushover': quality_score += 1
-                elif opp_info['Tier'] == 'Lockdown': quality_score -= 1
-                matchup_list.append(f"{opp_info['Emoji']} vs {opponent}")
-            team_stats.append({"Team": team, "Games": num_games, "Quality Score": quality_score, "Matchups": " | ".join(matchup_list)})
+                opp = row['Away Team'] if row['Home Team'] == team else row['Home Team']
+                info = rating_map.get(opp, {'Tier': 'Neutral', 'Emoji': '⚪'})
+                if info['Tier'] == 'Pushover': score += 1
+                elif info['Tier'] == 'Lockdown': score -= 1
+                matchups.append(f"{info['Emoji']} vs {opp}")
+            team_stats.append({"Team": team, "Games": len(games), "Score": score, "Matchups": " | ".join(matchups)})
 
     # --- 6. DISPLAY ---
     if team_stats:
-        results_df = pd.DataFrame(team_stats)
-        game_counts = sorted(results_df['Games'].unique(), reverse=True)
-        
-        for count in game_counts:
-            # By using st.container(border=True), we trigger the CSS above 
-            # that turns this container into a White Glass Bubble.
-            with st.container(border=True):
-                st.markdown(f"### 📅 Teams playing {count} games")
-                subset = results_df[results_df['Games'] == count].sort_values(by="Quality Score", ascending=False)
-                for _, row in subset.iterrows():
-                    vibe = "🔥" if row['Quality Score'] > 0 else "❄️" if row['Quality Score'] < 0 else "⚪"
-                    label = f"{vibe} {row['Team']} (Quality Score: {row['Quality Score']})"
-                    with st.expander(label):
-                        st.write(f"**Matchups:** {row['Matchups']}")
+        df_res = pd.DataFrame(team_stats)
+        for count in sorted(df_res['Games'].unique(), reverse=True):
+            # VISUAL SEPARATION: Title with a divider
+            st.header(f"📅 Teams playing {count} games")
+            st.divider() 
+            
+            subset = df_res[df_res['Games'] == count].sort_values("Score", ascending=False)
+            for _, row in subset.iterrows():
+                vibe = "🔥" if row['Score'] > 0 else "❄️" if row['Score'] < 0 else "⚪"
+                with st.expander(f"{vibe} {row['Team']} (Quality Score: {row['Score']})"):
+                    st.write(f"**Matchups:** {row['Matchups']}")
+            st.write("") # Extra spacing between groups
     else:
-        st.warning("No teams found for this selection.")
+        st.warning("No games found.")
 
 except Exception as e:
     st.error(f"Error: {e}")
