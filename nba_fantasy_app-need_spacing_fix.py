@@ -1,5 +1,5 @@
 import streamlit as st
-import pd
+import pandas as pd
 import base64
 from streamlit_gsheets import GSheetsConnection
 from datetime import date, timedelta
@@ -23,26 +23,29 @@ try:
             background-position: center;
             background-attachment: fixed;
         }}
-        /* Instead of bubbles, we frost the WHOLE background slightly for readability */
+        /* This tints the whole background white so text is easy to read */
         [data-testid="stAppViewContainer"]::before {{
             content: "";
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background-color: rgba(255, 255, 255, 0.8);
+            background-color: rgba(255, 255, 255, 0.85);
             z-index: -1;
         }}
-        h1, h2, h3 {{ color: #1E1E1E !important; }}
-        /* Make Expanders stand out like cards */
+        /* Header and Text Colors */
+        h1, h2, h3, p, span {{
+            color: #1E1E1E !important;
+        }}
+        /* Card-style expanders */
         .streamlit-expanderHeader {{
             background-color: white !important;
             border: 1px solid #ddd !important;
-            border-radius: 8px !important;
-            margin-bottom: 5px;
+            border-radius: 10px !important;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
         }}
         </style>
         """, unsafe_allow_html=True)
 except:
-    st.sidebar.warning("Background image not found.")
+    st.sidebar.warning("Background image file not found.")
 
 # --- 2. LOGO ---
 try:
@@ -57,8 +60,10 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 def load_data():
     schedule_url = "https://docs.google.com/spreadsheets/d/19WTtvYIW132Tzv94ktKNrkug_z975AfiLrbUcJq04uQ/edit?gid=1678584316#gid=1678584316"
     ratings_url = "https://docs.google.com/spreadsheets/d/19WTtvYIW132Tzv94ktKNrkug_z975AfiLrbUcJq04uQ/edit?gid=1403257463#gid=1403257463"
+    
     schedule = conn.read(spreadsheet=schedule_url)
     ratings = conn.read(spreadsheet=ratings_url)
+    
     schedule.columns = schedule.columns.str.strip().str.title()
     ratings.columns = ratings.columns.str.strip().str.title()
     schedule['Date'] = pd.to_datetime(schedule['Date'], dayfirst=True)
@@ -76,7 +81,8 @@ try:
     max_sched_date = df_schedule['Date'].max().date()
     
     if b2b_toggle:
-        start_date, end_date = today_val, today_val + timedelta(days=1)
+        start_date = today_val
+        end_date = today_val + timedelta(days=1)
         st.sidebar.info(f"📅 Showing back-to-back games for: {start_date} to {end_date}")
     else:
         start_date = st.sidebar.date_input("Start Date", today_val, min_value=yesterday, max_value=max_sched_date)
@@ -84,7 +90,12 @@ try:
 
     st.sidebar.markdown("---")
     with st.sidebar.expander("ℹ️ How Quality Scores work"):
-        st.write("Score is based on opponent defensive ratings from the last 15 games.")
+        st.write("""
+            **Based on Last 15 Games:**
+            * 🔥 **Pushover (+1):** Bottom 5 Defense.
+            * ⚪ **Neutral (0):** League Average.
+            * ❄️ **Lockdown (-1):** Top 5 Defense.
+        """)
 
     # --- 5. PROCESSING ---
     mask = (df_schedule['Date'].dt.date >= start_date) & (df_schedule['Date'].dt.date <= end_date)
@@ -105,24 +116,26 @@ try:
                 if info['Tier'] == 'Pushover': score += 1
                 elif info['Tier'] == 'Lockdown': score -= 1
                 matchups.append(f"{info['Emoji']} vs {opp}")
-            team_stats.append({"Team": team, "Games": len(games), "Score": score, "Matchups": " | ".join(matchups)})
+            team_stats.append({"Team": team, "Games": len(games), "Quality Score": score, "Matchups": " | ".join(matchups)})
 
     # --- 6. DISPLAY ---
     if team_stats:
         df_res = pd.DataFrame(team_stats)
-        for count in sorted(df_res['Games'].unique(), reverse=True):
-            # VISUAL SEPARATION: Title with a divider
+        game_counts = sorted(df_res['Games'].unique(), reverse=True)
+        
+        for count in game_counts:
             st.header(f"📅 Teams playing {count} games")
-            st.divider() 
+            st.divider()
             
-            subset = df_res[df_res['Games'] == count].sort_values("Score", ascending=False)
+            subset = df_res[df_res['Games'] == count].sort_values("Quality Score", ascending=False)
             for _, row in subset.iterrows():
-                vibe = "🔥" if row['Score'] > 0 else "❄️" if row['Score'] < 0 else "⚪"
-                with st.expander(f"{vibe} {row['Team']} (Quality Score: {row['Score']})"):
+                vibe = "🔥" if row['Quality Score'] > 0 else "❄️" if row['Quality Score'] < 0 else "⚪"
+                label = f"{vibe} {row['Team']} (Quality Score: {row['Quality Score']})"
+                with st.expander(label):
                     st.write(f"**Matchups:** {row['Matchups']}")
-            st.write("") # Extra spacing between groups
+            st.markdown("<br>", unsafe_allow_html=True) # Spacer
     else:
-        st.warning("No games found.")
+        st.warning("No teams found for this selection.")
 
 except Exception as e:
     st.error(f"Error: {e}")
