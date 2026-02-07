@@ -6,41 +6,41 @@ from datetime import date, timedelta
 # Page Config
 st.set_page_config(page_title="NBA Streamer's Edge", layout="centered")
 
-# --- 1. DIAGNOSTIC CSS (No Background Image) ---
+# --- 1. ROBUST CSS (Works on Mobile & Desktop) ---
 st.markdown("""
     <style>
-    /* Set a neutral grey background to see if white bubbles pop */
+    /* Force the main area to be a light grey so white cards pop */
     [data-testid="stAppViewContainer"] {
-        background-color: #E5E7EB !important;
+        background-color: #F0F2F6 !important;
     }
     
-    /* Target the container border wrapper */
-    [data-testid="stVerticalBlockBorderWrapper"] {
-        background-color: #FFFFFF !important; /* Pure White */
-        border-radius: 20px !important;
-        border: 1px solid #D1D5DB !important;
-        padding: 25px !important;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
-        margin-bottom: 25px !important;
+    /* Target the container that Streamlit uses for 'border=True' */
+    /* This selector is more robust for mobile browsers */
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+        background-color: white !important;
+        border-radius: 15px !important;
+        border: 1px solid #DDE1E7 !important;
+        padding: 20px !important;
+        margin-bottom: 20px !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05) !important;
     }
 
-    /* Force Black Text */
-    h1, h2, h3, p, span, label, .stMarkdown {
-        color: #111827 !important;
+    /* Keep text black and readable */
+    h1, h2, h3, p, span, label {
+        color: #1E1E1E !important;
     }
 
-    /* Style the expanders inside the bubbles */
+    /* Style the expanders inside the cards */
     .streamlit-expanderHeader {
-        background-color: #F9FAFB !important;
-        border: 1px solid #E5E7EB !important;
-        border-radius: 10px !important;
+        background-color: #FFFFFF !important;
+        border: 1px solid #F0F2F6 !important;
+        border-radius: 8px !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
 # --- 2. LOGO ---
 try:
-    # Using 'stretch' to avoid the warning
     st.image("NBA-B2B-Track_logo.png", width='stretch')
 except:
     st.title("🏀 NBA Streamer's Edge")
@@ -62,29 +62,35 @@ def load_data():
 try:
     df_schedule, df_ratings = load_data()
     
-    # --- 4. SIDEBAR ---
-    st.sidebar.header("Filter Settings")
-    b2b_toggle = st.sidebar.toggle("Show Today & Tomorrow (back-to-back)", value=False)
-    
-    today_val = date.today()
-    yesterday = today_val - timedelta(days=1)
-    max_sched_date = df_schedule['Date'].max().date()
-    
-    if b2b_toggle:
-        start_date, end_date = today_val, today_val + timedelta(days=1)
-        st.sidebar.info(f"📅 Showing back-to-back games for: {start_date} to {end_date}")
-    else:
-        start_date = st.sidebar.date_input("Start Date", today_val, min_value=yesterday, max_value=max_sched_date)
-        end_date = st.sidebar.date_input("End Date", today_val + timedelta(days=7), min_value=yesterday, max_value=max_sched_date)
+    # --- 4. TOP-LEVEL FILTERS (BETTER FOR MOBILE) ---
+    # We move these out of the sidebar so they are the first thing mobile users see
+    with st.container(border=True):
+        st.subheader("🗓️ Filter Games")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            b2b_toggle = st.toggle("Show Back-to-Backs Only", value=False)
+        
+        today_val = date.today()
+        yesterday = today_val - timedelta(days=1)
+        max_date = df_schedule['Date'].max().date()
 
-    st.sidebar.markdown("---")
-    with st.sidebar.expander("ℹ️ How Quality Scores work"):
-        st.write("""
-            **Based on Last 15 Games:**
-            * 🔥 **Pushover (+1):** Bottom 5 Defense.
-            * ⚪ **Neutral (0):** League Average.
-            * ❄️ **Lockdown (-1):** Top 5 Defense.
-        """)
+        if not b2b_toggle:
+            with col2:
+                # Combining range into a single input to save space on mobile
+                date_range = st.date_input(
+                    "Select Date Range",
+                    value=(today_val, today_val + timedelta(days=7)),
+                    min_value=yesterday,
+                    max_value=max_date
+                )
+                if len(date_range) == 2:
+                    start_date, end_date = date_range
+                else:
+                    start_date = end_date = date_range[0]
+        else:
+            start_date, end_date = today_val, today_val + timedelta(days=1)
+            st.info(f"Showing games for {start_date} and {end_date}")
 
     # --- 5. PROCESSING ---
     mask = (df_schedule['Date'].dt.date >= start_date) & (df_schedule['Date'].dt.date <= end_date)
@@ -111,17 +117,19 @@ try:
     if team_stats:
         df_res = pd.DataFrame(team_stats)
         for count in sorted(df_res['Games'].unique(), reverse=True):
-            # The bordered container should now be a solid white box against the grey background
             with st.container(border=True):
                 st.header(f"📅 Teams playing {count} games")
                 subset = df_res[df_res['Games'] == count].sort_values("Score", ascending=False)
                 for _, row in subset.iterrows():
                     vibe = "🔥" if row['Score'] > 0 else "❄️" if row['Score'] < 0 else "⚪"
-                    label = f"{vibe} {row['Team']} (Quality Score: {row['Score']})"
-                    with st.expander(label):
+                    with st.expander(f"{vibe} {row['Team']} (Quality Score: {row['Score']})"):
                         st.write(f"**Matchups:** {row['Matchups']}")
     else:
         st.warning("No teams found for this selection.")
+
+    # Methodology at the very bottom for mobile accessibility
+    with st.expander("ℹ️ How Quality Scores work"):
+        st.write("Score is based on opponent defensive ratings from the last 15 games (+1 for Pushover, -1 for Lockdown).")
 
 except Exception as e:
     st.error(f"Error: {e}")
