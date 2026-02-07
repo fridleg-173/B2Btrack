@@ -23,22 +23,26 @@ try:
             background-position: center;
             background-attachment: fixed;
         }}
-        /* Target EVERY Streamlit Container to look like a bubble */
-        [data-testid="stVerticalBlockBorderWrapper"] > div > [data-testid="stVerticalBlock"] > [data-testid="stVerticalBlock"] {{
-            background-color: rgba(255, 255, 255, 0.85) !important;
-            backdrop-filter: blur(12px);
-            padding: 30px !important;
-            border-radius: 25px !important;
-            border: 1px solid rgba(255, 255, 255, 0.3) !important;
-            margin-bottom: 30px !important;
-        }}
-        h2, h3, p, span, label {{
+        /* Global Text adjustments */
+        h1, h2, h3, p, span, label {{
             color: #1E1E1E !important;
         }}
+        /* Style for the Expanders to make them solid white */
         .streamlit-expanderHeader {{
             background-color: white !important;
             border-radius: 10px !important;
             border: 1px solid #ddd !important;
+            color: #1E1E1E !important;
+        }}
+        /* Custom class for our White Glass Bubble */
+        .glass-card {{
+            background-color: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            padding: 25px;
+            border-radius: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }}
         </style>
         """, unsafe_allow_html=True)
@@ -117,21 +121,25 @@ try:
                 matchup_list.append(f"{opp_info['Emoji']} vs {opponent}")
             team_stats.append({"Team": team, "Games": num_games, "Quality Score": quality_score, "Matchups": " | ".join(matchup_list)})
 
-    # --- 6. DISPLAY ---
+    # --- 6. DISPLAY (The HTML Wrapper Fix) ---
     if team_stats:
         results_df = pd.DataFrame(team_stats)
         game_counts = sorted(results_df['Games'].unique(), reverse=True)
         
         for count in game_counts:
-            # THIS IS THE BUBBLE WRAPPER
-            with st.container(border=True):
-                st.markdown(f"## 📅 Teams playing {count} games")
-                subset = results_df[results_df['Games'] == count].sort_values(by="Quality Score", ascending=False)
-                for _, row in subset.iterrows():
-                    vibe = "🔥" if row['Quality Score'] > 0 else "❄️" if row['Quality Score'] < 0 else "⚪"
-                    label = f"{vibe} {row['Team']} (Quality Score: {row['Quality Score']})"
-                    with st.expander(label):
-                        st.write(f"**Matchups:** {row['Matchups']}")
+            # We use an f-string to open the div
+            st.markdown(f'<div class="glass-card">', unsafe_allow_html=True)
+            st.markdown(f"## 📅 Teams playing {count} games")
+            
+            subset = results_df[results_df['Games'] == count].sort_values(by="Quality Score", ascending=False)
+            for _, row in subset.iterrows():
+                vibe = "🔥" if row['Quality Score'] > 0 else "❄️" if row['Quality Score'] < 0 else "⚪"
+                label = f"{vibe} {row['Team']} (Quality Score: {row['Quality Score']})"
+                with st.expander(label):
+                    st.write(f"**Matchups:** {row['Matchups']}")
+            
+            # We close the div
+            st.markdown('</div>', unsafe_allow_html=True)
     else:
         st.warning("No teams found for this selection.")
 
