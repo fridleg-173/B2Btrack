@@ -7,43 +7,65 @@ from datetime import date, timedelta
 # Page Config
 st.set_page_config(page_title="NBA Streamer's Edge", layout="centered")
 
-# --- 1. FUNCTION TO LOAD LOCAL IMAGE AS BACKGROUND ---
+# --- 1. BACKGROUND IMAGE STYLING ---
 def get_base64(bin_file):
     with open(bin_file, 'rb') as f:
         data = f.read()
     return base64.b64encode(data).decode()
 
 try:
-    # This reads your 'background_image.png' and turns it into CSS-ready text
     bin_str = get_base64('background_image.png')
-    # Updated CSS for better readability over a background
     st.markdown(f"""
         <style>
         [data-testid="stAppViewContainer"] {{
             background-image: url("data:image/png;base64,{bin_str}");
             background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
         }}
-        /* This creates a 'Glassmorphism' effect for your content */
-        [data-testid="stVerticalBlock"] {{
-            background-color: rgba(0, 0, 0, 0.7); /* Darker overlay */
-            padding: 25px;
-            border-radius: 15px;
-            color: white;
+        /* Making the background very transparent/faded so it's not vibrant */
+        [data-testid="stAppViewContainer"]::before {{
+            content: "";
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(255, 255, 255, 0.85); /* White tint to fade the image */
+            z-index: -1;
         }}
-        /* Make headers and text white to pop against the dark overlay */
-        h1, h2, h3, p {{
-            color: white !important;
+        /* Keep headers and standard text dark for readability on light tint */
+        h1, h2, h3, p, span, label {{
+            color: #1E1E1E !important;
+        }}
+        /* Ensuring the Expanders (Team Names) have a solid white background */
+        .streamlit-expanderHeader {{
+            background-color: white !important;
+            border-radius: 5px;
+        }}
+        .stExpander {{
+            background-color: white !important;
+            border-radius: 5px;
+            margin-bottom: 10px;
         }}
         </style>
         """, unsafe_allow_html=True)
 except Exception as e:
-    st.sidebar.warning("Background image file not found. Ensure 'background_image.png' is in your repo.")
+    st.sidebar.warning("Background image file not found.")
 
 # --- 2. LOGO ---
 try:
     st.image("NBA-B2B-Track_logo.png", use_container_width=True)
 except:
     st.title("🏀 NBA Streamer's Edge")
+
+# Methodology Dropdown (Moved back to main area as requested)
+with st.expander("ℹ️ How are Quality Scores calculated?"):
+    st.write("""
+        This tool helps you identify the best streaming targets based on defensive matchups:
+        * **Data Source:** Defensive Ratings are pulled from NBA.com based on the **last 15 games**.
+        * **Lockdown (❄️):** Top 5 defensive teams. Streaming against them is difficult (-1 point).
+        * **Pushover (🔥):** Bottom 5 defensive teams. Great for streaming (+1 point).
+        * **Neutral (⚪):** All other teams (0 points).
+        * **Quality Score:** The sum of these values across a team's scheduled games in range.
+    """)
 
 # --- 3. DATA LOADING ---
 conn = st.connection("gsheets", type=GSheetsConnection)
@@ -64,7 +86,7 @@ def load_data():
 try:
     df_schedule, df_ratings = load_data()
     
-    # --- 4. SIDEBAR (FILTERS & METHODOLOGY) ---
+    # --- 4. SIDEBAR (FILTERS) ---
     st.sidebar.header("Filter Settings")
     b2b_shortcut = st.sidebar.toggle("Show Today & Tomorrow (back-to-back)", value=False)
     
@@ -75,22 +97,10 @@ try:
     if b2b_shortcut:
         start_date = today_val
         end_date = today_val + timedelta(days=1)
-        st.sidebar.info(f"📅 Showing Back to Back for: {start_date} to {end_date}")
+        st.sidebar.info(f"📅 Showing B2B games for: {start_date} to {end_date}")
     else:
         start_date = st.sidebar.date_input("Start Date", today_val, min_value=yesterday, max_value=max_sched_date)
         end_date = st.sidebar.date_input("End Date", today_val + timedelta(days=7), min_value=yesterday, max_value=max_sched_date)
-
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("ℹ️ Quality Score Legend")
-    st.sidebar.info("""
-        **Based on Last 15 Games:**
-        * 🔥 **Pushover (+1):** Bottom 5 Defense.
-        * ⚪ **Neutral (0):** League Average.
-        * ❄️ **Lockdown (-1):** Top 5 Defense.
-        
-        Score is the total for all games in range.
-    """)
-
 
     # --- 5. PROCESSING ---
     mask = (df_schedule['Date'].dt.date >= start_date) & (df_schedule['Date'].dt.date <= end_date)
