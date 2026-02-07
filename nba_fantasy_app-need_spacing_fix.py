@@ -7,7 +7,7 @@ from datetime import date, timedelta
 # Page Config
 st.set_page_config(page_title="NBA Streamer's Edge", layout="centered")
 
-# --- 1. BACKGROUND & BUBBLE STYLING ---
+# --- 1. WHITE GLASS BUBBLE STYLING ---
 def get_base64(bin_file):
     with open(bin_file, 'rb') as f:
         data = f.read()
@@ -23,28 +23,28 @@ try:
             background-position: center;
             background-attachment: fixed;
         }}
-        [data-testid="stAppViewContainer"]::before {{
-            content: "";
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background-color: rgba(255, 255, 255, 0.85);
-            z-index: -1;
-        }}
-        h1, h2, h3, p, span, label {{
+        /* Global text color for readability */
+        h1, h2, h3, p, span, label, .stMarkdown {{
             color: #1E1E1E !important;
         }}
-        /* Bubble styling for game groups */
+        /* White Glass Bubble for game groups */
         .game-group-bubble {{
-            background-color: rgba(0, 0, 0, 0.05);
-            border: 1px solid rgba(0, 0, 0, 0.1);
-            padding: 20px;
-            border-radius: 20px;
-            margin-bottom: 25px;
+            background-color: rgba(255, 255, 255, 0.6); /* Semi-transparent white */
+            backdrop-filter: blur(10px); /* Frosted glass effect */
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 25px;
+            border-radius: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
         }}
-        /* Expander headers */
+        /* Expander styling */
         .streamlit-expanderHeader {{
-            background-color: white !important;
-            border-radius: 10px !important;
+            background-color: rgba(255, 255, 255, 0.9) !important;
+            border-radius: 12px !important;
+        }}
+        .stExpander {{
+            border: none !important;
+            background-color: transparent !important;
         }}
         </style>
         """, unsafe_allow_html=True)
@@ -85,15 +85,15 @@ try:
     if b2b_shortcut:
         start_date = today_val
         end_date = today_val + timedelta(days=1)
-        # Updated text per your request
-        st.sidebar.info(f"📅 Showing B2B games for: {start_date} to {end_date}")
+        # Corrected phrasing as requested
+        st.sidebar.info(f"📅 Showing back-to-back games for: {start_date} to {end_date}")
     else:
         start_date = st.sidebar.date_input("Start Date", today_val, min_value=yesterday, max_value=max_sched_date)
         end_date = st.sidebar.date_input("End Date", today_val + timedelta(days=7), min_value=yesterday, max_value=max_sched_date)
 
     st.sidebar.markdown("---")
-    # Methodology moved back to Sidebar as requested
-    with st.sidebar.expander("❓ How Quality Scores work"):
+    # Methodology with requested "i" emoji
+    with st.sidebar.expander("ℹ️ How Quality Scores work"):
         st.write("""
             **Based on Last 15 Games:**
             * 🔥 **Pushover (+1):** Bottom 5 Defense.
@@ -125,14 +125,14 @@ try:
                 matchup_list.append(f"{opp_info['Emoji']} vs {opponent}")
             team_stats.append({"Team": team, "Games": num_games, "Quality Score": quality_score, "Matchups": " | ".join(matchup_list)})
 
-    # --- 6. DISPLAY WITH BUBBLE CONTAINERS ---
+    # --- 6. DISPLAY ---
     if team_stats:
         results_df = pd.DataFrame(team_stats)
         game_counts = sorted(results_df['Games'].unique(), reverse=True)
         for count in game_counts:
-            # Start of the bubble
+            # The White Glass Bubble Container
             st.markdown(f'<div class="game-group-bubble">', unsafe_allow_html=True)
-            st.markdown(f"## 📅 Teams playing {count} games")
+            st.markdown(f"### 📅 Teams playing {count} games")
             
             subset = results_df[results_df['Games'] == count].sort_values(by="Quality Score", ascending=False)
             for _, row in subset.iterrows():
@@ -141,7 +141,6 @@ try:
                 with st.expander(label):
                     st.write(f"**Matchups:** {row['Matchups']}")
             
-            # End of the bubble
             st.markdown('</div>', unsafe_allow_html=True)
     else:
         st.warning("No teams found for this selection.")
