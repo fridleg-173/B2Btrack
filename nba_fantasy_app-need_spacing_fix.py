@@ -7,7 +7,7 @@ from datetime import date, timedelta
 # Page Config
 st.set_page_config(page_title="NBA Streamer's Edge", layout="centered")
 
-# --- 1. THE CSS (Targeting Borders Directly) ---
+# --- 1. THE "FORCED WHITE" CSS ---
 def get_base64(bin_file):
     with open(bin_file, 'rb') as f:
         data = f.read()
@@ -17,7 +17,7 @@ try:
     bin_str = get_base64('background_image.png')
     st.markdown(f"""
         <style>
-        /* 1. Set the background image to the whole app */
+        /* 1. Background Image */
         [data-testid="stAppViewContainer"] {{
             background-image: url("data:image/png;base64,{bin_str}");
             background-size: cover;
@@ -25,35 +25,45 @@ try:
             background-attachment: fixed;
         }}
         
-        /* 2. Target EVERY container with a border and make it a White Bubble */
+        /* 2. FORCING the Container to be White */
+        /* We target the border wrapper and force the background-color */
         [data-testid="stVerticalBlockBorderWrapper"] {{
-            background-color: rgba(255, 255, 255, 0.9) !important;
-            backdrop-filter: blur(10px) !important;
+            background-color: rgba(255, 255, 255, 0.95) !important;
+            backdrop-filter: blur(15px) !important;
+            border: 1px solid #FFFFFF !important;
             border-radius: 20px !important;
-            border: 1px solid rgba(255, 255, 255, 0.5) !important;
-            padding: 20px !important;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
-            margin-bottom: 25px !important;
+            padding: 25px !important;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2) !important;
         }}
 
-        /* 3. Text and Header Colors for contrast */
-        h1, h2, h3, p, span, label, .stMarkdown {{
-            color: #1E1E1E !important;
+        /* 3. Ensuring internal blocks also respect the white background */
+        [data-testid="stVerticalBlockBorderWrapper"] > div {{
+            background-color: transparent !important;
         }}
 
-        /* 4. Expander (Team) Styling */
+        /* 4. Text Contrast (Jet Black) */
+        h1, h2, h3, p, span, label, .stMarkdown, .stExpander p {{
+            color: #000000 !important;
+        }}
+
+        /* 5. Team Card Styling (Solid White) */
         .streamlit-expanderHeader {{
-            background-color: #ffffff !important;
+            background-color: #FFFFFF !important;
+            border: 1px solid #E0E0E0 !important;
             border-radius: 10px !important;
-            border: 1px solid #ddd !important;
+        }}
+        .streamlit-expanderContent {{
+            background-color: #FFFFFF !important;
+            color: #000000 !important;
         }}
         </style>
         """, unsafe_allow_html=True)
 except:
     st.sidebar.warning("Background image not found.")
 
-# --- 2. LOGO (Warning Fixed: use_container_width -> width='stretch') ---
+# --- 2. LOGO ---
 try:
+    # Set width to 'stretch' to fix the container warning
     st.image("NBA-B2B-Track_logo.png", width='stretch')
 except:
     st.title("🏀 NBA Streamer's Edge")
@@ -91,8 +101,14 @@ try:
         end_date = st.sidebar.date_input("End Date", today_val + timedelta(days=7), min_value=yesterday, max_value=max_sched_date)
 
     st.sidebar.markdown("---")
+    # Methodology in sidebar with requested "i" emoji
     with st.sidebar.expander("ℹ️ How Quality Scores work"):
-        st.write("Score is based on opponent defensive ratings from the last 15 games.")
+        st.write("""
+            **Based on Last 15 Games:**
+            * 🔥 **Pushover (+1):** Bottom 5 Defense.
+            * ⚪ **Neutral (0):** League Average.
+            * ❄️ **Lockdown (-1):** Top 5 Defense.
+        """)
 
     # --- 5. PROCESSING ---
     mask = (df_schedule['Date'].dt.date >= start_date) & (df_schedule['Date'].dt.date <= end_date)
@@ -115,17 +131,18 @@ try:
                 matchups.append(f"{info['Emoji']} vs {opp}")
             team_stats.append({"Team": team, "Games": len(games), "Score": score, "Matchups": " | ".join(matchups)})
 
-    # --- 6. DISPLAY (Grouped into Native Bordered Containers) ---
+    # --- 6. DISPLAY ---
     if team_stats:
         df_res = pd.DataFrame(team_stats)
         for count in sorted(df_res['Games'].unique(), reverse=True):
-            # The 'border=True' here triggers our CSS bubble styling
+            # The border=True container which we've now FORCED to be white
             with st.container(border=True):
                 st.header(f"📅 Teams playing {count} games")
                 subset = df_res[df_res['Games'] == count].sort_values("Score", ascending=False)
                 for _, row in subset.iterrows():
                     vibe = "🔥" if row['Score'] > 0 else "❄️" if row['Score'] < 0 else "⚪"
-                    with st.expander(f"{vibe} {row['Team']} (Quality Score: {row['Score']})"):
+                    label = f"{vibe} {row['Team']} (Quality Score: {row['Score']})"
+                    with st.expander(label):
                         st.write(f"**Matchups:** {row['Matchups']}")
     else:
         st.warning("No teams found for this selection.")
