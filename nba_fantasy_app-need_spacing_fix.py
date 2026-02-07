@@ -1,198 +1,96 @@
-import pandas as pd
 import streamlit as st
-from datetime import date, timedelta
-from PIL import Image
-
-
-
-# =========================
-# Data helpers (NO Streamlit here)
-# =========================
-
-def load_schedule(csv_path):
-    df = pd.read_csv(csv_path)
-    df["Date"] = pd.to_datetime(df["Date"], format="%d/%m/%Y")
-    return df
-
-
-def games_per_team_in_range(df, start_date, end_date):
-    start_date = pd.to_datetime(start_date)
-    end_date = pd.to_datetime(end_date)
-
-    df = df[(df["Date"] >= start_date) & (df["Date"] <= end_date)]
-
-    home = df["Home Team"].value_counts()
-    away = df["Away Team"].value_counts()
-
-    return home.add(away, fill_value=0).astype(int).sort_values(ascending=False)
-
-
-def teams_playing_on_date(df, target_date):
-    return set(
-        df[df["Date"] == target_date]["Home Team"]
-    ).union(
-        set(df[df["Date"] == target_date]["Away Team"])
-    )
-
-
-def get_back_to_back_teams(df, base_date):
-    today = pd.to_datetime(base_date)
-    tomorrow = today + pd.Timedelta(days=1)
-
-    teams_today = teams_playing_on_date(df, today)
-    teams_tomorrow = teams_playing_on_date(df, tomorrow)
-
-    return sorted(teams_today & teams_tomorrow)
-
-
-def group_teams_by_games(games_series):
-    grouped = {}
-    for team, games in games_series.items():
-        grouped.setdefault(games, []).append(team)
-    return grouped
-
-
-# =========================
-# Streamlit UI
-# =========================
-import base64
 import pandas as pd
-import streamlit as st
-from datetime import date
+from streamlit_gsheets import GSheetsConnection
 
-# 1. Helper to encode image
-def get_base64_of_bin_file(bin_file):
-    with open(bin_file, 'rb') as f:
-        data = f.read()
-    return base64.b64encode(data).decode()
+# Page Config
+st.set_page_config(page_title="NBA Streamer's Edge", layout="centered")
 
-# 2. Inject CSS for Background and Glass Effect
-def apply_custom_styles(bin_file):
-    bin_str = get_base64_of_bin_file(bin_file)
-    css = f'''
-    <style>
-    /* 1. Background Style */
-    [data-testid="stAppViewContainer"] {{
-        background: linear-gradient(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2)), 
-                    url("data:image/jpg;base64,{bin_str}");
-        background-size: cover;
-        background-position: center;
-        background-attachment: fixed;
-    }}
+st.title("🏀 NBA Streamer's Edge")
+st.markdown("### Phase 1: Defensive Matchups & Quality Games")
 
-    /* 2. Glass Container Style */
-    .glass-box {{
-        background: rgba(15, 15, 25, 0.85);
-        border: 2px solid #5d3fd3;
-        border-radius: 15px;
-        padding: 30px;
-        margin-bottom: 20px;
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
-    }}
+# 1. Connect to Google Sheets
+conn = st.connection("gsheets", type=GSheetsConnection)
 
-    /* 3. Force White Text for Headings/Paragraphs */
-    .glass-box h1, .glass-box h2, .glass-box h3, .glass-box h4, .glass-box p, .glass-box div {{
-        color: #FFFFFF !important;
-    }}
-
-    /* 4. Force White Text for Streamlit Widget Labels (Checkboxes/Inputs) */
-    [data-testid="stMarkdownContainer"] p, 
-    .stCheckbox label p, 
-    .stDateInput label p {{
-        color: white !important;
-        font-weight: bold !important;
-    }}
-
-    /* 5. Make Streamlit buttons visible on dark background */
-    .stButton>button {{
-        color: white !important;
-        background-color: #5d3fd3 !important;
-        border: 2px solid #FFFFFF !important;
-        border-radius: 8px;
-        padding: 0.25em 0.75em;
-        font-weight: bold;
-    }}
-    .stButton>button:hover {{
-        background-color: #7a5fff !important;
-    }}
+@st.cache_data(ttl=3600) # Refresh data every hour
+def load_data():
+    sheet_url = "https://docs.google.com/spreadsheets/d/19WTtvYIW132Tzv94ktKNrkug_z975AfiLrbUcJq04uQ/edit?usp=sharing"
+    # Load Schedule and Ratings
+    schedule = conn.read(spreadsheet=sheet_url, worksheet="Schedule")
+    ratings = conn.read(spreadsheet=sheet_url, worksheet="team_tier")
     
-    /* 6. Force closer spacing for checkboxes and inputs inside glass box */
-    .glass-box .stCheckbox, 
-    .glass-box .stDateInput, 
-    .glass-box .stButton {{
-        margin-top: -0.5rem !important;
-        margin-bottom: 0.25rem !important;
-    }}
+    # Clean data: Ensure dates are datetime objects
+    schedule['Date'] = pd.to_datetime(schedule['Date'], dayfirst=True)
+    return schedule, ratings
 
+try:
+    df_schedule, df_ratings = load_data()
     
-    </style>
-    '''
-    st.markdown(css, unsafe_allow_html=True)
+    # 2. Sidebar Filters
+    st.sidebar.header("Filter Range")
+    start_date = st.sidebar.date_input("Start Date", df_schedule['Date'].min())
+    end_date = st.sidebar.date_input("End Date", df_schedule['Date'].min() + pd.Timedelta(days=6))
 
+    # 3. Processing Logic
+    mask = (df_schedule['Date'] >= pd.to_datetime(start_date)) & (df_schedule['Date'] <= pd.to_datetime(end_date))
+    filtered_sched = df_schedule[mask]
 
-# Apply styles
-apply_custom_styles('background_court.jpg')
+    # Map ratings for easy lookup
+    # Creating a dictionary {TeamName: (Tier, Emoji)}
+    rating_map = df_ratings.set_index('Team')[['Tier', 'Emoji']].to_dict('index')
 
-# 3. Use the "Glass" Container for your UI
-# Wrap your main title in a div with the glass-container class
-st.markdown('<div class="glass-container">', unsafe_allow_html=True)
+    all_teams = pd.concat([df_schedule['Home Team'], df_schedule['Away Team']]).unique()
+    team_stats = []
 
-st.markdown("## 🏀 NBA Game Tracker", unsafe_allow_html=True)
-st.write("Select your date range.")
+    for team in all_teams:
+        # Find games for this team
+        games = filtered_sched[(filtered_sched['Home Team'] == team) | (filtered_sched['Away Team'] == team)]
+        num_games = len(games)
+        
+        if num_games > 0:
+            score = 0
+            matchup_details = []
+            
+            for _, row in games.iterrows():
+                # Who is the opponent?
+                opponent = row['Away Team'] if row['Home Team'] == team else row['Home Team']
+                
+                # Get opponent stats
+                opp_info = rating_map.get(opponent, {'Tier': 'Unknown', 'Emoji': '❓'})
+                
+                # Calculate Score
+                if opp_info['Tier'] == 'Pushover': score += 1
+                elif opp_info['Tier'] == 'Lockdown': score -= 1
+                
+                matchup_details.append(f"{opp_info['Emoji']} vs {opponent}")
 
-st.markdown('</div>', unsafe_allow_html=True) # End of top glass box
+            team_stats.append({
+                "Team": team,
+                "Games": num_games,
+                "Score": score,
+                "Matchups": " | ".join(matchup_details)
+            })
 
+    # 4. Display Results
+    results_df = pd.DataFrame(team_stats).sort_values(by=["Games", "Score"], ascending=False)
 
+    # Group by number of games
+    for game_count in sorted(results_df['Games'].unique(), reverse=True):
+        st.subheader(f"Teams playing {game_count} games")
+        
+        subset = results_df[results_df['Games'] == game_count]
+        for _, row in subset.iterrows():
+            # Determine overall vibe emoji
+            vibe = "🔥" if row['Score'] > 0 else "❄️" if row['Score'] < 0 else "⚪"
+            
+            with st.expander(f"{vibe} {row['Team']} ({row['Score']} Matchup Score)"):
+                st.write(f"**Matchups this week:**")
+                st.write(row['Matchups'])
 
+except Exception as e:
+    st.error(f"Error loading data: {e}")
+    st.info("Check if your Google Sheet tab names match 'Schedule' and 'team_tier' exactly.")
 
-CSV_FILE = "schedule_comma_separated.csv"
-df = load_schedule(CSV_FILE)
-
-# ---- Back-to-back toggle ----
-show_back_to_back = st.checkbox(
-    "Show teams playing today & tomorrow (back-to-back)",
-    value=False
-)
-
-st.divider()
-
-# =========================
-# BACK-TO-BACK MODE (IMMEDIATE)
-# =========================
-if show_back_to_back:
-    st.subheader("Teams playing today & tomorrow")
-
-    back_to_back_teams = get_back_to_back_teams(df, date.today())
-
-    if back_to_back_teams:
-        for i in range(0, len(back_to_back_teams), 3):
-            st.write(", ".join(back_to_back_teams[i:i+3]))
-    else:
-        st.write("No teams play on both days.")
-
-# =========================
-# DATE RANGE MODE (BUTTON)
-# =========================
-else:
-    use_today = st.checkbox("Start from today", value=False)
-
-    if use_today:
-        start_date = date.today()
-    else:
-        start_date = st.date_input("Start Date", value=date.today())
-
-    end_date = st.date_input("End Date", value=date.today())
-
-    if st.button("Show games"):
-        games_series = games_per_team_in_range(df, start_date, end_date)
-        grouped = group_teams_by_games(games_series)
-
-        for games_count in sorted(grouped.keys(), reverse=True):
-            st.markdown(f"### Teams playing {games_count} games")
-            teams = grouped[games_count]
-
-            for i in range(0, len(teams), 3):
-                st.write(", ".join(teams[i:i+3]))
-
-        #st.divider()
-        #st.bar_chart(games_series)
+# Debug Section (Collapse by default)
+with st.expander("🛠️ Debug Information"):
+    st.write("If you see '❓', it means a team name in the Schedule doesn't match the Ratings tab.")
+    st.write("Teams found in Ratings:", list(df_ratings['Team'].unique()))
