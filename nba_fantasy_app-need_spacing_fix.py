@@ -13,12 +13,13 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 @st.cache_data(ttl=3600)
 def load_data():
-    # Cleaned URL (no GID)
-    sheet_url = "https://docs.google.com/spreadsheets/d/19WTtvYIW132Tzv94ktKNrkug_z975AfiLrbUcJq04uQ/edit?usp=sharing"
+    # Replace these strings with the EXACT URLs you copied from your browser for each tab
+    schedule_url = "https://docs.google.com/spreadsheets/d/19WTtvYIW132Tzv94ktKNrkug_z975AfiLrbUcJq04uQ/edit?gid=1678584316#gid=1678584316"
+    ratings_url = "https://docs.google.com/spreadsheets/d/19WTtvYIW132Tzv94ktKNrkug_z975AfiLrbUcJq04uQ/edit?gid=1403257463#gid=1403257463"
     
-    # Try reading without specific GIDs in the URL string
-    schedule = conn.read(spreadsheet=sheet_url, worksheet="Schedule")
-    ratings = conn.read(spreadsheet=sheet_url, worksheet="team_tier")
+    # We pass the full URL to each read command
+    schedule = conn.read(spreadsheet=schedule_url)
+    ratings = conn.read(spreadsheet=ratings_url)
     
     # Clean data
     schedule['Date'] = pd.to_datetime(schedule['Date'], dayfirst=True)
