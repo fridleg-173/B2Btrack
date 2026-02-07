@@ -7,7 +7,7 @@ from datetime import date, timedelta
 # Page Config
 st.set_page_config(page_title="NBA Streamer's Edge", layout="centered")
 
-# --- 1. CSS FOR THE CENTRAL GLASS PANE ---
+# --- 1. CSS STYLING ---
 def get_base64(bin_file):
     with open(bin_file, 'rb') as f:
         data = f.read()
@@ -17,7 +17,7 @@ try:
     bin_str = get_base64('background_image.png')
     st.markdown(f"""
         <style>
-        /* 1. The main site background */
+        /* The Background */
         [data-testid="stAppViewContainer"] {{
             background-image: url("data:image/png;base64,{bin_str}");
             background-size: cover;
@@ -25,35 +25,27 @@ try:
             background-attachment: fixed;
         }}
         
-        /* 2. The Transparent White Bubble (Central Pane) */
-        /* This targets the main content area */
-        [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"] {{
-            background-color: transparent;
-        }}
-        
-        /* This targets the vertical block that holds all your main content */
-        [data-testid="stMainViewContainer"] [data-testid="stVerticalBlock"] > div {{
-            background-color: rgba(255, 255, 255, 0.85);
+        /* The Big White Bubble for the Main Content */
+        /* We target the 'stMain' area directly */
+        .main .block-container {{
+            background-color: rgba(255, 255, 255, 0.9);
             backdrop-filter: blur(10px);
-            padding: 30px;
-            border-radius: 20px;
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-        }}
-        
-        /* 3. Ensure sidebar stays clean */
-        [data-testid="stSidebar"] {{
-            background-color: rgba(255, 255, 255, 0.95);
+            padding: 40px !important;
+            border-radius: 30px;
+            margin-top: 50px;
+            margin-bottom: 50px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
         }}
 
-        /* 4. Text Contrast */
+        /* Text colors for dark contrast */
         h1, h2, h3, p, span, label {{
             color: #1E1E1E !important;
         }}
 
-        /* 5. Team Card Styling */
+        /* Team Card Styling */
         .streamlit-expanderHeader {{
-            background-color: white !important;
-            border: 1px solid #E0E0E0 !important;
+            background-color: #f8f9fa !important;
+            border: 1px solid #eee !important;
             border-radius: 10px !important;
         }}
         </style>
@@ -61,9 +53,10 @@ try:
 except:
     st.sidebar.warning("Background image file not found.")
 
-# --- 2. LOGO ---
+# --- 2. LOGO (Warning Fixed Here) ---
 try:
-    st.image("NBA-B2B-Track_logo.png", use_container_width=True)
+    # Fixed based on your warning: use_container_width -> width='stretch'
+    st.image("NBA-B2B-Track_logo.png", width='stretch')
 except:
     st.title("🏀 NBA Streamer's Edge")
 
@@ -101,12 +94,7 @@ try:
 
     st.sidebar.markdown("---")
     with st.sidebar.expander("ℹ️ How Quality Scores work"):
-        st.write("""
-            **Based on Last 15 Games:**
-            * 🔥 **Pushover (+1):** Bottom 5 Defense.
-            * ⚪ **Neutral (0):** League Average.
-            * ❄️ **Lockdown (-1):** Top 5 Defense.
-        """)
+        st.write("Score is based on opponent defensive ratings from the last 15 games.")
 
     # --- 5. PROCESSING ---
     mask = (df_schedule['Date'].dt.date >= start_date) & (df_schedule['Date'].dt.date <= end_date)
