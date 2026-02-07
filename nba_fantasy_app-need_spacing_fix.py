@@ -7,7 +7,7 @@ from datetime import date, timedelta
 # Page Config
 st.set_page_config(page_title="NBA Streamer's Edge", layout="centered")
 
-# --- 1. WHITE GLASS BUBBLE STYLING ---
+# --- 1. THE "GLASS BUBBLE" CSS ---
 def get_base64(bin_file):
     with open(bin_file, 'rb') as f:
         data = f.read()
@@ -23,38 +23,33 @@ try:
             background-position: center;
             background-attachment: fixed;
         }}
-        /* Global text color for readability */
-        h1, h2, h3, p, span, label, .stMarkdown {{
+        /* Frosted Glass Container for each game group */
+        .glass-bubble {{
+            background-color: rgba(255, 255, 255, 0.8); 
+            backdrop-filter: blur(10px);
+            padding: 25px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            margin-bottom: 30px;
+        }}
+        /* Global text colors for legibility */
+        h2, h3, p, span, label {{
             color: #1E1E1E !important;
         }}
-        /* The Wrapper Bubble for each game group */
-        .game-group-bubble {{
-            background-color: rgba(255, 255, 255, 0.7); /* Slightly more opaque white */
-            backdrop-filter: blur(12px); 
-            border: 1px solid rgba(255, 255, 255, 0.4);
-            padding: 30px;
-            border-radius: 30px;
-            margin-top: 20px;
-            margin-bottom: 40px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-        }}
-        /* Header inside the bubble */
-        .game-group-bubble h2 {{
-            margin-top: 0px !important;
-            padding-bottom: 15px;
-            border-bottom: 1px solid rgba(0,0,0,0.1);
-            margin-bottom: 20px !important;
-        }}
-        /* Expander styling for white blocks */
+        /* Force Expanders to be solid white for contrast */
         .streamlit-expanderHeader {{
             background-color: white !important;
-            border-radius: 12px !important;
-            border: 1px solid #E0E0E0 !important;
+            border-radius: 10px !important;
+            border: 1px solid #ddd !important;
+        }}
+        .streamlit-expanderContent {{
+            background-color: white !important;
+            color: #1E1E1E !important;
         }}
         </style>
         """, unsafe_allow_html=True)
 except Exception as e:
-    st.sidebar.warning("Background image file not found.")
+    st.sidebar.warning("Background image not found.")
 
 # --- 2. LOGO ---
 try:
@@ -79,7 +74,7 @@ def load_data():
 try:
     df_schedule, df_ratings = load_data()
     
-    # --- 4. SIDEBAR (FILTERS & METHODOLOGY) ---
+    # --- 4. SIDEBAR ---
     st.sidebar.header("Filter Settings")
     b2b_shortcut = st.sidebar.toggle("Show Today & Tomorrow (back-to-back)", value=False)
     
@@ -103,7 +98,7 @@ try:
             * ⚪ **Neutral (0):** League Average.
             * ❄️ **Lockdown (-1):** Top 5 Defense.
             
-            **Quality Score** is the sum of these values for all games in range.
+            **Quality Score** is the sum of these values.
         """)
 
     # --- 5. PROCESSING ---
@@ -128,16 +123,15 @@ try:
                 matchup_list.append(f"{opp_info['Emoji']} vs {opponent}")
             team_stats.append({"Team": team, "Games": num_games, "Quality Score": quality_score, "Matchups": " | ".join(matchup_list)})
 
-    # --- 6. DISPLAY WITH GROUPED BUBBLES ---
+    # --- 6. DISPLAY (The Bubble Grouping) ---
     if team_stats:
         results_df = pd.DataFrame(team_stats)
         game_counts = sorted(results_df['Games'].unique(), reverse=True)
+        
         for count in game_counts:
-            # We open the div, put the header and the teams inside, then close it.
-            st.markdown(f'''
-                <div class="game-group-bubble">
-                    <h2 style="color: #1E1E1E;">📅 Teams playing {count} games</h2>
-            ''', unsafe_allow_html=True)
+            # We wrap the entire block in a div with the 'glass-bubble' class
+            st.markdown(f'<div class="glass-bubble">', unsafe_allow_html=True)
+            st.markdown(f"## 📅 Teams playing {count} games")
             
             subset = results_df[results_df['Games'] == count].sort_values(by="Quality Score", ascending=False)
             for _, row in subset.iterrows():
@@ -146,6 +140,7 @@ try:
                 with st.expander(label):
                     st.write(f"**Matchups:** {row['Matchups']}")
             
+            # Close the bubble div
             st.markdown('</div>', unsafe_allow_html=True)
     else:
         st.warning("No teams found for this selection.")
