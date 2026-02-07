@@ -1,69 +1,46 @@
 import streamlit as st
 import pandas as pd
-import base64
 from streamlit_gsheets import GSheetsConnection
 from datetime import date, timedelta
 
 # Page Config
 st.set_page_config(page_title="NBA Streamer's Edge", layout="centered")
 
-# --- 1. THE "FORCED WHITE" CSS ---
-def get_base64(bin_file):
-    with open(bin_file, 'rb') as f:
-        data = f.read()
-    return base64.b64encode(data).decode()
+# --- 1. DIAGNOSTIC CSS (No Background Image) ---
+st.markdown("""
+    <style>
+    /* Set a neutral grey background to see if white bubbles pop */
+    [data-testid="stAppViewContainer"] {
+        background-color: #E5E7EB !important;
+    }
+    
+    /* Target the container border wrapper */
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        background-color: #FFFFFF !important; /* Pure White */
+        border-radius: 20px !important;
+        border: 1px solid #D1D5DB !important;
+        padding: 25px !important;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
+        margin-bottom: 25px !important;
+    }
 
-try:
-    bin_str = get_base64('background_image.png')
-    st.markdown(f"""
-        <style>
-        /* 1. Background Image */
-        [data-testid="stAppViewContainer"] {{
-            background-image: url("data:image/png;base64,{bin_str}");
-            background-size: cover;
-            background-position: center;
-            background-attachment: fixed;
-        }}
-        
-        /* 2. FORCING the Container to be White */
-        /* We target the border wrapper and force the background-color */
-        [data-testid="stVerticalBlockBorderWrapper"] {{
-            background-color: rgba(255, 255, 255, 0.95) !important;
-            backdrop-filter: blur(15px) !important;
-            border: 1px solid #FFFFFF !important;
-            border-radius: 20px !important;
-            padding: 25px !important;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2) !important;
-        }}
+    /* Force Black Text */
+    h1, h2, h3, p, span, label, .stMarkdown {
+        color: #111827 !important;
+    }
 
-        /* 3. Ensuring internal blocks also respect the white background */
-        [data-testid="stVerticalBlockBorderWrapper"] > div {{
-            background-color: transparent !important;
-        }}
-
-        /* 4. Text Contrast (Jet Black) */
-        h1, h2, h3, p, span, label, .stMarkdown, .stExpander p {{
-            color: #000000 !important;
-        }}
-
-        /* 5. Team Card Styling (Solid White) */
-        .streamlit-expanderHeader {{
-            background-color: #FFFFFF !important;
-            border: 1px solid #E0E0E0 !important;
-            border-radius: 10px !important;
-        }}
-        .streamlit-expanderContent {{
-            background-color: #FFFFFF !important;
-            color: #000000 !important;
-        }}
-        </style>
-        """, unsafe_allow_html=True)
-except:
-    st.sidebar.warning("Background image not found.")
+    /* Style the expanders inside the bubbles */
+    .streamlit-expanderHeader {
+        background-color: #F9FAFB !important;
+        border: 1px solid #E5E7EB !important;
+        border-radius: 10px !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
 # --- 2. LOGO ---
 try:
-    # Set width to 'stretch' to fix the container warning
+    # Using 'stretch' to avoid the warning
     st.image("NBA-B2B-Track_logo.png", width='stretch')
 except:
     st.title("🏀 NBA Streamer's Edge")
@@ -101,7 +78,6 @@ try:
         end_date = st.sidebar.date_input("End Date", today_val + timedelta(days=7), min_value=yesterday, max_value=max_sched_date)
 
     st.sidebar.markdown("---")
-    # Methodology in sidebar with requested "i" emoji
     with st.sidebar.expander("ℹ️ How Quality Scores work"):
         st.write("""
             **Based on Last 15 Games:**
@@ -135,7 +111,7 @@ try:
     if team_stats:
         df_res = pd.DataFrame(team_stats)
         for count in sorted(df_res['Games'].unique(), reverse=True):
-            # The border=True container which we've now FORCED to be white
+            # The bordered container should now be a solid white box against the grey background
             with st.container(border=True):
                 st.header(f"📅 Teams playing {count} games")
                 subset = df_res[df_res['Games'] == count].sort_values("Score", ascending=False)
