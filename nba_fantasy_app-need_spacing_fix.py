@@ -7,7 +7,7 @@ from datetime import date, timedelta
 # Page Config
 st.set_page_config(page_title="NBA Streamer's Edge", layout="centered")
 
-# --- 1. THE "GLASS BUBBLE" CSS ---
+# --- 1. CSS STYLING ---
 def get_base64(bin_file):
     with open(bin_file, 'rb') as f:
         data = f.read()
@@ -23,28 +23,22 @@ try:
             background-position: center;
             background-attachment: fixed;
         }}
-        /* Frosted Glass Container for each game group */
-        .glass-bubble {{
-            background-color: rgba(255, 255, 255, 0.8); 
-            backdrop-filter: blur(10px);
-            padding: 25px;
-            border-radius: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            margin-bottom: 30px;
+        /* Target EVERY Streamlit Container to look like a bubble */
+        [data-testid="stVerticalBlockBorderWrapper"] > div > [data-testid="stVerticalBlock"] > [data-testid="stVerticalBlock"] {{
+            background-color: rgba(255, 255, 255, 0.85) !important;
+            backdrop-filter: blur(12px);
+            padding: 30px !important;
+            border-radius: 25px !important;
+            border: 1px solid rgba(255, 255, 255, 0.3) !important;
+            margin-bottom: 30px !important;
         }}
-        /* Global text colors for legibility */
         h2, h3, p, span, label {{
             color: #1E1E1E !important;
         }}
-        /* Force Expanders to be solid white for contrast */
         .streamlit-expanderHeader {{
             background-color: white !important;
             border-radius: 10px !important;
             border: 1px solid #ddd !important;
-        }}
-        .streamlit-expanderContent {{
-            background-color: white !important;
-            color: #1E1E1E !important;
         }}
         </style>
         """, unsafe_allow_html=True)
@@ -123,25 +117,21 @@ try:
                 matchup_list.append(f"{opp_info['Emoji']} vs {opponent}")
             team_stats.append({"Team": team, "Games": num_games, "Quality Score": quality_score, "Matchups": " | ".join(matchup_list)})
 
-    # --- 6. DISPLAY (The Bubble Grouping) ---
+    # --- 6. DISPLAY ---
     if team_stats:
         results_df = pd.DataFrame(team_stats)
         game_counts = sorted(results_df['Games'].unique(), reverse=True)
         
         for count in game_counts:
-            # We wrap the entire block in a div with the 'glass-bubble' class
-            st.markdown(f'<div class="glass-bubble">', unsafe_allow_html=True)
-            st.markdown(f"## 📅 Teams playing {count} games")
-            
-            subset = results_df[results_df['Games'] == count].sort_values(by="Quality Score", ascending=False)
-            for _, row in subset.iterrows():
-                vibe = "🔥" if row['Quality Score'] > 0 else "❄️" if row['Quality Score'] < 0 else "⚪"
-                label = f"{vibe} {row['Team']} (Quality Score: {row['Quality Score']})"
-                with st.expander(label):
-                    st.write(f"**Matchups:** {row['Matchups']}")
-            
-            # Close the bubble div
-            st.markdown('</div>', unsafe_allow_html=True)
+            # THIS IS THE BUBBLE WRAPPER
+            with st.container(border=True):
+                st.markdown(f"## 📅 Teams playing {count} games")
+                subset = results_df[results_df['Games'] == count].sort_values(by="Quality Score", ascending=False)
+                for _, row in subset.iterrows():
+                    vibe = "🔥" if row['Quality Score'] > 0 else "❄️" if row['Quality Score'] < 0 else "⚪"
+                    label = f"{vibe} {row['Team']} (Quality Score: {row['Quality Score']})"
+                    with st.expander(label):
+                        st.write(f"**Matchups:** {row['Matchups']}")
     else:
         st.warning("No teams found for this selection.")
 
