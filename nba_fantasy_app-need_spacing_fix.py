@@ -16,23 +16,23 @@ def get_base64(bin_file):
 try:
     # This reads your 'background_image.png' and turns it into CSS-ready text
     bin_str = get_base64('background_image.png')
+    # Updated CSS for better readability over a background
     st.markdown(f"""
         <style>
         [data-testid="stAppViewContainer"] {{
             background-image: url("data:image/png;base64,{bin_str}");
             background-size: cover;
-            background-position: center;
-            background-attachment: fixed;
         }}
-        /* Semi-transparent overlay to make text pop */
+        /* This creates a 'Glassmorphism' effect for your content */
         [data-testid="stVerticalBlock"] {{
-            background-color: rgba(255, 255, 255, 0.1); 
-            padding: 20px;
+            background-color: rgba(0, 0, 0, 0.7); /* Darker overlay */
+            padding: 25px;
             border-radius: 15px;
+            color: white;
         }}
-        /* Make the header transparent to match the background */
-        [data-testid="stHeader"] {{
-            background: rgba(0,0,0,0);
+        /* Make headers and text white to pop against the dark overlay */
+        h1, h2, h3, p {{
+            color: white !important;
         }}
         </style>
         """, unsafe_allow_html=True)
@@ -90,6 +90,7 @@ try:
         
         Score is the total for all games in range.
     """)
+
 
     # --- 5. PROCESSING ---
     mask = (df_schedule['Date'].dt.date >= start_date) & (df_schedule['Date'].dt.date <= end_date)
