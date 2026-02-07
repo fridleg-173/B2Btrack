@@ -13,16 +13,22 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 @st.cache_data(ttl=3600)
 def load_data():
-    # Replace these strings with the EXACT URLs you copied from your browser for each tab
     schedule_url = "https://docs.google.com/spreadsheets/d/19WTtvYIW132Tzv94ktKNrkug_z975AfiLrbUcJq04uQ/edit?gid=1678584316#gid=1678584316"
     ratings_url = "https://docs.google.com/spreadsheets/d/19WTtvYIW132Tzv94ktKNrkug_z975AfiLrbUcJq04uQ/edit?gid=1403257463#gid=1403257463"
     
-    # We pass the full URL to each read command
+    # Load raw data
     schedule = conn.read(spreadsheet=schedule_url)
     ratings = conn.read(spreadsheet=ratings_url)
     
-    # Clean data
+    # 1. CLEAN HEADERS: Make everything Title Case and remove extra spaces
+    # This ensures "TEAM" or "teams" both become "Team"
+    schedule.columns = schedule.columns.str.strip().str.title()
+    ratings.columns = ratings.columns.str.strip().str.title()
+
+    # 2. DATE CLEANING: Ensure the Schedule date is usable
+    # NBA.com/other sources use different formats, so we handle those here
     schedule['Date'] = pd.to_datetime(schedule['Date'], dayfirst=True)
+    
     return schedule, ratings
 
 # Initialise variables to None to prevent NameErrors
@@ -40,7 +46,7 @@ try:
     mask = (df_schedule['Date'] >= pd.to_datetime(start_date)) & (df_schedule['Date'] <= pd.to_datetime(end_date))
     filtered_sched = df_schedule[mask]
 
-    # Map ratings
+    # Map ratings, make sure name headers match
     rating_map = df_ratings.set_index('Team')[['Tier', 'Emoji']].to_dict('index')
 
     all_teams = pd.concat([df_schedule['Home Team'], df_schedule['Away Team']]).unique()
