@@ -7,7 +7,7 @@ from datetime import date, timedelta
 # Page Config
 st.set_page_config(page_title="NBA Streamer's Edge", layout="centered")
 
-# --- 1. CSS STYLING ---
+# --- 1. THE FAIL-PROOF BACKGROUND OVERLAY ---
 def get_base64(bin_file):
     with open(bin_file, 'rb') as f:
         data = f.read()
@@ -17,7 +17,7 @@ try:
     bin_str = get_base64('background_image.png')
     st.markdown(f"""
         <style>
-        /* The Background */
+        /* This sets the image as the base layer */
         [data-testid="stAppViewContainer"] {{
             background-image: url("data:image/png;base64,{bin_str}");
             background-size: cover;
@@ -25,38 +25,40 @@ try:
             background-attachment: fixed;
         }}
         
-        /* The Big White Bubble for the Main Content */
-        /* We target the 'stMain' area directly */
-        .main .block-container {{
-            background-color: rgba(255, 255, 255, 0.9);
-            backdrop-filter: blur(10px);
-            padding: 40px !important;
-            border-radius: 30px;
-            margin-top: 50px;
-            margin-bottom: 50px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        /* This adds a heavy 'Wash' over the whole app so text is ALWAYS readable */
+        [data-testid="stAppViewBlockContainer"] {{
+            background-color: rgba(255, 255, 255, 0.9); /* 90% white - very clear */
+            padding: 3rem !important;
+            border-radius: 20px;
+            margin-top: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }}
 
-        /* Text colors for dark contrast */
-        h1, h2, h3, p, span, label {{
+        /* Force dark text for everything */
+        h1, h2, h3, p, span, label, li {{
             color: #1E1E1E !important;
         }}
 
-        /* Team Card Styling */
+        /* Ensure the expanders (team boxes) are solid white cards */
         .streamlit-expanderHeader {{
-            background-color: #f8f9fa !important;
-            border: 1px solid #eee !important;
-            border-radius: 10px !important;
+            background-color: white !important;
+            border: 1px solid #ddd !important;
+            border-radius: 8px !important;
+        }}
+        .streamlit-expanderContent {{
+            background-color: white !important;
+            color: #1E1E1E !important;
         }}
         </style>
         """, unsafe_allow_html=True)
-except:
-    st.sidebar.warning("Background image file not found.")
+except Exception as e:
+    st.sidebar.warning("Background image not found.")
 
-# --- 2. LOGO (Warning Fixed Here) ---
+# --- 2. LOGO ---
 try:
     # Fixed based on your warning: use_container_width -> width='stretch'
-    st.image("NBA-B2B-Track_logo.png", width='stretch')
+    st.image("NBA-B2B-Track_logo.png", width="stretch")
 except:
     st.title("🏀 NBA Streamer's Edge")
 
@@ -67,8 +69,10 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 def load_data():
     schedule_url = "https://docs.google.com/spreadsheets/d/19WTtvYIW132Tzv94ktKNrkug_z975AfiLrbUcJq04uQ/edit?gid=1678584316#gid=1678584316"
     ratings_url = "https://docs.google.com/spreadsheets/d/19WTtvYIW132Tzv94ktKNrkug_z975AfiLrbUcJq04uQ/edit?gid=1403257463#gid=1403257463"
+    
     schedule = conn.read(spreadsheet=schedule_url)
     ratings = conn.read(spreadsheet=ratings_url)
+    
     schedule.columns = schedule.columns.str.strip().str.title()
     ratings.columns = ratings.columns.str.strip().str.title()
     schedule['Date'] = pd.to_datetime(schedule['Date'], dayfirst=True)
@@ -94,7 +98,12 @@ try:
 
     st.sidebar.markdown("---")
     with st.sidebar.expander("ℹ️ How Quality Scores work"):
-        st.write("Score is based on opponent defensive ratings from the last 15 games.")
+        st.write("""
+            **Based on Last 15 Games:**
+            * 🔥 **Pushover (+1):** Bottom 5 Defense.
+            * ⚪ **Neutral (0):** League Average.
+            * ❄️ **Lockdown (-1):** Top 5 Defense.
+        """)
 
     # --- 5. PROCESSING ---
     mask = (df_schedule['Date'].dt.date >= start_date) & (df_schedule['Date'].dt.date <= end_date)
@@ -115,17 +124,22 @@ try:
                 if info['Tier'] == 'Pushover': score += 1
                 elif info['Tier'] == 'Lockdown': score -= 1
                 matchups.append(f"{info['Emoji']} vs {opp}")
-            team_stats.append({"Team": team, "Games": len(games), "Score": score, "Matchups": " | ".join(matchups)})
+            team_stats.append({"Team": team, "Games": len(games), "Quality Score": score, "Matchups": " | ".join(matchups)})
 
     # --- 6. DISPLAY ---
     if team_stats:
         df_res = pd.DataFrame(team_stats)
-        for count in sorted(df_res['Games'].unique(), reverse=True):
+        game_counts = sorted(df_res['Games'].unique(), reverse=True)
+        
+        for count in game_counts:
             st.header(f"📅 Teams playing {count} games")
-            subset = df_res[df_res['Games'] == count].sort_values("Score", ascending=False)
+            st.divider()
+            
+            subset = df_res[df_res['Games'] == count].sort_values("Quality Score", ascending=False)
             for _, row in subset.iterrows():
-                vibe = "🔥" if row['Score'] > 0 else "❄️" if row['Score'] < 0 else "⚪"
-                with st.expander(f"{vibe} {row['Team']} (Quality Score: {row['Score']})"):
+                vibe = "🔥" if row['Quality Score'] > 0 else "❄️" if row['Quality Score'] < 0 else "⚪"
+                label = f"{vibe} {row['Team']} (Quality Score: {row['Quality Score']})"
+                with st.expander(label):
                     st.write(f"**Matchups:** {row['Matchups']}")
     else:
         st.warning("No teams found for this selection.")
