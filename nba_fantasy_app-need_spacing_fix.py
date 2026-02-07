@@ -7,11 +7,9 @@ from datetime import date, timedelta
 st.set_page_config(page_title="NBA Streamer's Edge", layout="centered")
 
 # --- 1. LOGO REPLACEMENT ---
-# This replaces the text title with your image file
 try:
     st.image("NBA-B2B-Track_logo.png", use_container_width=True)
 except:
-    # Fallback to text if the image isn't found/pushed yet
     st.title("🏀 NBA Streamer's Edge")
 
 st.markdown("### Defensive Matchups & Quality Games")
@@ -39,9 +37,8 @@ try:
     # --- 3. SIDEBAR FILTERS ---
     st.sidebar.header("Filter Settings")
     
-    b2b_shortcut = st.sidebar.toggle("Show Today & Tomorrow B2Bs", value=False)
+    b2b_shortcut = st.sidebar.toggle("Show Today & Tomorrow (back-to-back)", value=False)
     
-    # Date Bounds
     today_val = date.today()
     yesterday = today_val - timedelta(days=1)
     max_sched_date = df_schedule['Date'].max().date()
@@ -49,10 +46,10 @@ try:
     if b2b_shortcut:
         start_date = today_val
         end_date = today_val + timedelta(days=1)
-        st.sidebar.info(f"📅 Showing B2Bs for: {start_date} to {end_date}")
+        # Use st.sidebar.info as requested
+        st.sidebar.info(f"📅 Showing Back to Back games for: {start_date} to {end_date}")
     else:
-        # CONSTRAINTS APPLIED HERE:
-        # Start date: min is yesterday, max is the end of the schedule
+        # CONSTRAINTS: Start Date limited by schedule max; End Date limited by yesterday min
         start_date = st.sidebar.date_input(
             "Start Date", 
             today_val, 
@@ -60,7 +57,6 @@ try:
             max_value=max_sched_date
         )
         
-        # End date: min is yesterday (or start_date), max is end of schedule
         end_date = st.sidebar.date_input(
             "End Date", 
             today_val + timedelta(days=7), 
@@ -79,6 +75,7 @@ try:
     for team in all_teams:
         games = filtered_sched[(filtered_sched['Home Team'] == team) | (filtered_sched['Away Team'] == team)].sort_values('Date')
         
+        # If B2B shortcut is ON, hide teams with only 1 game in the 2-day window
         if b2b_shortcut and len(games) < 2:
             continue
             
@@ -97,10 +94,13 @@ try:
 
     # --- 5. DISPLAY RESULTS ---
     if team_stats:
-        results_df = pd.DataFrame(team_stats).sort_values(by=["Score", "Team"], ascending=[False, True])
+        # Sort by Score (Best first), then Games (Most first)
+        results_df = pd.DataFrame(team_stats).sort_values(by=["Score", "Games"], ascending=[False, False])
+        
         for _, row in results_df.iterrows():
             vibe = "🔥" if row['Score'] > 0 else "❄️" if row['Score'] < 0 else "⚪"
-            with st.expander(f"{vibe} {row['Team']} ({row['Score']})"):
+            # ADDED BACK: row['Games'] inside the expander title
+            with st.expander(f"{vibe} {row['Team']} — {row['Games']} Games (Score: {row['Score']})"):
                 st.write(f"**Opponents:** {row['Matchups']}")
     else:
         st.warning("No teams found for this selection.")
