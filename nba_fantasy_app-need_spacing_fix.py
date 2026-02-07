@@ -6,24 +6,32 @@ from datetime import date, timedelta
 # Page Config
 st.set_page_config(page_title="NBA Streamer's Edge", layout="centered")
 
-# --- 1. LOGO & HEADER ---
+# --- 1. BACKGROUND IMAGE & STYLING ---
+# This applies your background image and adds a slight overlay to keep text readable
+st.markdown(f"""
+    <style>
+    [data-testid="stAppViewContainer"] {{
+        background-image: url("background_image.png");
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+    }}
+    /* Adds a semi-transparent dark layer so text remains easy to read */
+    [data-testid="stVerticalBlock"] {{
+        background-color: rgba(255, 255, 255, 0.05); 
+        padding: 10px;
+        border-radius: 10px;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- 2. LOGO ---
 try:
     st.image("NBA-B2B-Track_logo.png", use_container_width=True)
 except:
     st.title("🏀 NBA Streamer's Edge")
 
-# Methodology Dropdown
-with st.expander("ℹ️ How are Quality Scores calculated?"):
-    st.write("""
-        This tool helps you identify the best streaming targets based on defensive matchups:
-        * **Data Source:** Defensive Ratings are pulled from NBA.com based on the **last 15 games** to capture current trends.
-        * **Lockdown (❄️):** Top 5 defensive teams. Streaming against them is difficult (-1 point).
-        * **Pushover (🔥):** Bottom 5 defensive teams. Great for streaming (+1 point).
-        * **Neutral (⚪):** All other teams (0 points).
-        * **Quality Score:** The sum of these values across a team's scheduled games in your selected range.
-    """)
-
-# --- 2. DATA LOADING ---
+# --- 3. DATA LOADING ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 @st.cache_data(ttl=3600)
@@ -43,7 +51,7 @@ def load_data():
 try:
     df_schedule, df_ratings = load_data()
     
-    # --- 3. SIDEBAR FILTERS ---
+    # --- 4. SIDEBAR FILTERS & INFO ---
     st.sidebar.header("Filter Settings")
     b2b_shortcut = st.sidebar.toggle("Show Today & Tomorrow (back-to-back)", value=False)
     
@@ -54,12 +62,24 @@ try:
     if b2b_shortcut:
         start_date = today_val
         end_date = today_val + timedelta(days=1)
-        st.sidebar.info(f"📅 Showing Back to Back games for: {start_date} to {end_date}")
+        st.sidebar.info(f"📅 Showing B2B games for: {start_date} to {end_date}")
     else:
         start_date = st.sidebar.date_input("Start Date", today_val, min_value=yesterday, max_value=max_sched_date)
         end_date = st.sidebar.date_input("End Date", today_val + timedelta(days=7), min_value=yesterday, max_value=max_sched_date)
 
-    # --- 4. PROCESSING LOGIC ---
+    st.sidebar.markdown("---")
+    # THE METHODOLOGY MOVED TO SIDEBAR
+    with st.sidebar.expander("❓ How Quality Scores work"):
+        st.write("""
+            **Based on Last 15 Games:**
+            * 🔥 **Pushover (+1):** Bottom 5 Defense.
+            * ⚪ **Neutral (0):** League Average.
+            * ❄️ **Lockdown (-1):** Top 5 Defense.
+            
+            **Quality Score** is the sum of these values for all games in your selected range.
+        """)
+
+    # --- 5. PROCESSING LOGIC ---
     mask = (df_schedule['Date'].dt.date >= start_date) & (df_schedule['Date'].dt.date <= end_date)
     filtered_sched = df_schedule[mask]
 
@@ -91,11 +111,9 @@ try:
                 "Matchups": " | ".join(matchup_list)
             })
 
-    # --- 5. DISPLAY RESULTS (GROUPED BY GAME COUNT) ---
+    # --- 6. DISPLAY RESULTS ---
     if team_stats:
         results_df = pd.DataFrame(team_stats)
-        
-        # Get unique game counts and sort them descending (e.g., 4, 3, 2, 1)
         game_counts = sorted(results_df['Games'].unique(), reverse=True)
         
         for count in game_counts:
@@ -105,7 +123,6 @@ try:
             for _, row in subset.iterrows():
                 vibe = "🔥" if row['Quality Score'] > 0 else "❄️" if row['Quality Score'] < 0 else "⚪"
                 label = f"{vibe} {row['Team']} (Quality Score: {row['Quality Score']})"
-                
                 with st.expander(label):
                     st.write(f"**Matchups:** {row['Matchups']}")
     else:
