@@ -7,7 +7,7 @@ from datetime import date, timedelta
 # Page Config
 st.set_page_config(page_title="NBA Streamer's Edge", layout="centered")
 
-# --- 1. CSS STYLING ---
+# --- 1. CSS STYLING (The "Glass Card" Fix) ---
 def get_base64(bin_file):
     with open(bin_file, 'rb') as f:
         data = f.read()
@@ -17,32 +17,36 @@ try:
     bin_str = get_base64('background_image.png')
     st.markdown(f"""
         <style>
+        /* 1. Set the background image */
         [data-testid="stAppViewContainer"] {{
             background-image: url("data:image/png;base64,{bin_str}");
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
         }}
-        /* Global Text adjustments */
-        h1, h2, h3, p, span, label {{
+        
+        /* 2. Style the Container to be the "Bubble" */
+        /* This targets the border=True container specifically */
+        [data-testid="stElementContainer"] div[data-testid="stVerticalBlockBorderWrapper"] {{
+            background-color: rgba(255, 255, 255, 0.85) !important;
+            backdrop-filter: blur(12px) !important;
+            padding: 20px !important;
+            border-radius: 25px !important;
+            border: 1px solid rgba(255, 255, 255, 0.4) !important;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1) !important;
+            margin-bottom: 2rem !important;
+        }}
+
+        /* 3. Global Text for Dark Contrast inside Bubble */
+        h2, h3, p, span, label, .stMarkdown {{
             color: #1E1E1E !important;
         }}
-        /* Style for the Expanders to make them solid white */
+
+        /* 4. Style Expanders (Team Rows) to be solid white */
         .streamlit-expanderHeader {{
             background-color: white !important;
-            border-radius: 10px !important;
-            border: 1px solid #ddd !important;
-            color: #1E1E1E !important;
-        }}
-        /* Custom class for our White Glass Bubble */
-        .glass-card {{
-            background-color: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(12px);
-            padding: 25px;
-            border-radius: 25px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            margin-bottom: 30px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            border-radius: 12px !important;
+            border: 1px solid #E0E0E0 !important;
         }}
         </style>
         """, unsafe_allow_html=True)
@@ -121,25 +125,22 @@ try:
                 matchup_list.append(f"{opp_info['Emoji']} vs {opponent}")
             team_stats.append({"Team": team, "Games": num_games, "Quality Score": quality_score, "Matchups": " | ".join(matchup_list)})
 
-    # --- 6. DISPLAY (The HTML Wrapper Fix) ---
+    # --- 6. DISPLAY ---
     if team_stats:
         results_df = pd.DataFrame(team_stats)
         game_counts = sorted(results_df['Games'].unique(), reverse=True)
         
         for count in game_counts:
-            # We use an f-string to open the div
-            st.markdown(f'<div class="glass-card">', unsafe_allow_html=True)
-            st.markdown(f"## 📅 Teams playing {count} games")
-            
-            subset = results_df[results_df['Games'] == count].sort_values(by="Quality Score", ascending=False)
-            for _, row in subset.iterrows():
-                vibe = "🔥" if row['Quality Score'] > 0 else "❄️" if row['Quality Score'] < 0 else "⚪"
-                label = f"{vibe} {row['Team']} (Quality Score: {row['Quality Score']})"
-                with st.expander(label):
-                    st.write(f"**Matchups:** {row['Matchups']}")
-            
-            # We close the div
-            st.markdown('</div>', unsafe_allow_html=True)
+            # By using st.container(border=True), we trigger the CSS above 
+            # that turns this container into a White Glass Bubble.
+            with st.container(border=True):
+                st.markdown(f"### 📅 Teams playing {count} games")
+                subset = results_df[results_df['Games'] == count].sort_values(by="Quality Score", ascending=False)
+                for _, row in subset.iterrows():
+                    vibe = "🔥" if row['Quality Score'] > 0 else "❄️" if row['Quality Score'] < 0 else "⚪"
+                    label = f"{vibe} {row['Team']} (Quality Score: {row['Quality Score']})"
+                    with st.expander(label):
+                        st.write(f"**Matchups:** {row['Matchups']}")
     else:
         st.warning("No teams found for this selection.")
 
