@@ -6,13 +6,22 @@ from datetime import date, timedelta
 # Page Config
 st.set_page_config(page_title="NBA Streamer's Edge", layout="centered")
 
-# --- 1. LOGO REPLACEMENT ---
+# --- 1. LOGO & HEADER ---
 try:
     st.image("NBA-B2B-Track_logo.png", use_container_width=True)
 except:
     st.title("🏀 NBA Streamer's Edge")
 
-st.markdown("### Defensive Matchups & Quality Games")
+# Methodology Dropdown
+with st.expander("ℹ️ How are Quality Scores calculated?"):
+    st.write("""
+        This tool helps you identify the best streaming targets based on defensive matchups:
+        * **Data Source:** Defensive Ratings are pulled from NBA.com based on the **last 15 games** to capture current trends.
+        * **Lockdown (❄️):** Top 5 defensive teams. Streaming against them is difficult (-1 point).
+        * **Pushover (🔥):** Bottom 5 defensive teams. Great for streaming (+1 point).
+        * **Neutral (⚪):** All other teams (0 points).
+        * **Quality Score:** The sum of these values across a team's scheduled games in your selected range.
+    """)
 
 # --- 2. DATA LOADING ---
 conn = st.connection("gsheets", type=GSheetsConnection)
@@ -36,7 +45,6 @@ try:
     
     # --- 3. SIDEBAR FILTERS ---
     st.sidebar.header("Filter Settings")
-    
     b2b_shortcut = st.sidebar.toggle("Show Today & Tomorrow (back-to-back)", value=False)
     
     today_val = date.today()
@@ -46,23 +54,10 @@ try:
     if b2b_shortcut:
         start_date = today_val
         end_date = today_val + timedelta(days=1)
-        # Use st.sidebar.info as requested
         st.sidebar.info(f"📅 Showing Back to Back games for: {start_date} to {end_date}")
     else:
-        # CONSTRAINTS: Start Date limited by schedule max; End Date limited by yesterday min
-        start_date = st.sidebar.date_input(
-            "Start Date", 
-            today_val, 
-            min_value=yesterday, 
-            max_value=max_sched_date
-        )
-        
-        end_date = st.sidebar.date_input(
-            "End Date", 
-            today_val + timedelta(days=7), 
-            min_value=yesterday, 
-            max_value=max_sched_date
-        )
+        start_date = st.sidebar.date_input("Start Date", today_val, min_value=yesterday, max_value=max_sched_date)
+        end_date = st.sidebar.date_input("End Date", today_val + timedelta(days=7), min_value=yesterday, max_value=max_sched_date)
 
     # --- 4. PROCESSING LOGIC ---
     mask = (df_schedule['Date'].dt.date >= start_date) & (df_schedule['Date'].dt.date <= end_date)
@@ -75,33 +70,44 @@ try:
     for team in all_teams:
         games = filtered_sched[(filtered_sched['Home Team'] == team) | (filtered_sched['Away Team'] == team)].sort_values('Date')
         
-        # If B2B shortcut is ON, hide teams with only 1 game in the 2-day window
         if b2b_shortcut and len(games) < 2:
             continue
             
         num_games = len(games)
         if num_games > 0:
-            score = 0
+            quality_score = 0
             matchup_list = []
             for _, row in games.iterrows():
                 opponent = row['Away Team'] if row['Home Team'] == team else row['Home Team']
                 opp_info = rating_map.get(opponent, {'Tier': 'Neutral', 'Emoji': '⚪'})
-                if opp_info['Tier'] == 'Pushover': score += 1
-                elif opp_info['Tier'] == 'Lockdown': score -= 1
+                if opp_info['Tier'] == 'Pushover': quality_score += 1
+                elif opp_info['Tier'] == 'Lockdown': quality_score -= 1
                 matchup_list.append(f"{opp_info['Emoji']} vs {opponent}")
 
-            team_stats.append({"Team": team, "Games": num_games, "Score": score, "Matchups": " | ".join(matchup_list)})
+            team_stats.append({
+                "Team": team, 
+                "Games": num_games, 
+                "Quality Score": quality_score, 
+                "Matchups": " | ".join(matchup_list)
+            })
 
-    # --- 5. DISPLAY RESULTS ---
+    # --- 5. DISPLAY RESULTS (GROUPED BY GAME COUNT) ---
     if team_stats:
-        # Sort by Score (Best first), then Games (Most first)
-        results_df = pd.DataFrame(team_stats).sort_values(by=["Score", "Games"], ascending=[False, False])
+        results_df = pd.DataFrame(team_stats)
         
-        for _, row in results_df.iterrows():
-            vibe = "🔥" if row['Score'] > 0 else "❄️" if row['Score'] < 0 else "⚪"
-            # ADDED BACK: row['Games'] inside the expander title
-            with st.expander(f"{vibe} {row['Team']} — {row['Games']} Games (Score: {row['Score']})"):
-                st.write(f"**Opponents:** {row['Matchups']}")
+        # Get unique game counts and sort them descending (e.g., 4, 3, 2, 1)
+        game_counts = sorted(results_df['Games'].unique(), reverse=True)
+        
+        for count in game_counts:
+            st.markdown(f"## 📅 Teams playing {count} games")
+            subset = results_df[results_df['Games'] == count].sort_values(by="Quality Score", ascending=False)
+            
+            for _, row in subset.iterrows():
+                vibe = "🔥" if row['Quality Score'] > 0 else "❄️" if row['Quality Score'] < 0 else "⚪"
+                label = f"{vibe} {row['Team']} (Quality Score: {row['Quality Score']})"
+                
+                with st.expander(label):
+                    st.write(f"**Matchups:** {row['Matchups']}")
     else:
         st.warning("No teams found for this selection.")
 
