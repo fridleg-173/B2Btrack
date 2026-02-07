@@ -27,24 +27,29 @@ try:
         h1, h2, h3, p, span, label, .stMarkdown {{
             color: #1E1E1E !important;
         }}
-        /* White Glass Bubble for game groups */
+        /* The Wrapper Bubble for each game group */
         .game-group-bubble {{
-            background-color: rgba(255, 255, 255, 0.6); /* Semi-transparent white */
-            backdrop-filter: blur(10px); /* Frosted glass effect */
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            padding: 25px;
-            border-radius: 25px;
-            margin-bottom: 30px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            background-color: rgba(255, 255, 255, 0.7); /* Slightly more opaque white */
+            backdrop-filter: blur(12px); 
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            padding: 30px;
+            border-radius: 30px;
+            margin-top: 20px;
+            margin-bottom: 40px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
         }}
-        /* Expander styling */
+        /* Header inside the bubble */
+        .game-group-bubble h2 {{
+            margin-top: 0px !important;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+            margin-bottom: 20px !important;
+        }}
+        /* Expander styling for white blocks */
         .streamlit-expanderHeader {{
-            background-color: rgba(255, 255, 255, 0.9) !important;
+            background-color: white !important;
             border-radius: 12px !important;
-        }}
-        .stExpander {{
-            border: none !important;
-            background-color: transparent !important;
+            border: 1px solid #E0E0E0 !important;
         }}
         </style>
         """, unsafe_allow_html=True)
@@ -85,14 +90,12 @@ try:
     if b2b_shortcut:
         start_date = today_val
         end_date = today_val + timedelta(days=1)
-        # Corrected phrasing as requested
         st.sidebar.info(f"📅 Showing back-to-back games for: {start_date} to {end_date}")
     else:
         start_date = st.sidebar.date_input("Start Date", today_val, min_value=yesterday, max_value=max_sched_date)
         end_date = st.sidebar.date_input("End Date", today_val + timedelta(days=7), min_value=yesterday, max_value=max_sched_date)
 
     st.sidebar.markdown("---")
-    # Methodology with requested "i" emoji
     with st.sidebar.expander("ℹ️ How Quality Scores work"):
         st.write("""
             **Based on Last 15 Games:**
@@ -125,14 +128,16 @@ try:
                 matchup_list.append(f"{opp_info['Emoji']} vs {opponent}")
             team_stats.append({"Team": team, "Games": num_games, "Quality Score": quality_score, "Matchups": " | ".join(matchup_list)})
 
-    # --- 6. DISPLAY ---
+    # --- 6. DISPLAY WITH GROUPED BUBBLES ---
     if team_stats:
         results_df = pd.DataFrame(team_stats)
         game_counts = sorted(results_df['Games'].unique(), reverse=True)
         for count in game_counts:
-            # The White Glass Bubble Container
-            st.markdown(f'<div class="game-group-bubble">', unsafe_allow_html=True)
-            st.markdown(f"### 📅 Teams playing {count} games")
+            # We open the div, put the header and the teams inside, then close it.
+            st.markdown(f'''
+                <div class="game-group-bubble">
+                    <h2 style="color: #1E1E1E;">📅 Teams playing {count} games</h2>
+            ''', unsafe_allow_html=True)
             
             subset = results_df[results_df['Games'] == count].sort_values(by="Quality Score", ascending=False)
             for _, row in subset.iterrows():
